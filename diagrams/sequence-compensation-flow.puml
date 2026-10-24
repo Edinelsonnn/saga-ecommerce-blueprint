@@ -1,0 +1,47 @@
+@startuml sequence-compensation-flow
+title Falha e compensação — pagamento recusado
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+autonumber
+actor Cliente
+participant "Order Service" as ORD
+queue "Message Broker" as MB
+participant "Saga Orchestrator" as ORC
+participant "Inventory Service" as INV
+participant "Payment Service" as PAY
+participant "Gateway externo" as EXT
+Cliente -> ORD : POST /orders
+ORD -> ORD : Order=PENDING + outbox
+ORD --> Cliente : 202 Accepted
+ORD -> MB : OrderCreated
+MB -> ORC : OrderCreated
+ORC -> MB : ReserveStock
+MB -> INV : ReserveStock
+INV -> INV : reserva = RESERVED
+INV -> MB : StockReserved
+MB -> ORC : StockReserved
+ORC -> MB : ProcessPayment
+MB -> PAY : ProcessPayment
+PAY -> EXT : authorize()
+EXT --> PAY : recusado
+PAY -> MB : PaymentRejected
+MB -> ORC : PaymentRejected
+ORC -> ORC : status=COMPENSATING
+== Compensações em ordem inversa ==
+ORC -> MB : ReleaseStock
+MB -> INV : ReleaseStock
+INV -> INV : reserva = RELEASED (idempotente)
+INV -> MB : StockReleased
+MB -> ORC : StockReleased
+ORC -> MB : CancelOrder
+MB -> ORD : CancelOrder
+ORD -> ORD : Order=CANCELLED
+ORD -> MB : OrderCancelled
+MB -> ORC : OrderCancelled
+ORC -> ORC : status=COMPENSATED
+ORD ->> Cliente : pedido cancelado; pagamento recusado
+note over ORC, INV
+Falhas repetidas: retry com backoff,
+DLQ, alerta e COMPENSATION_FAILED.
+end note
+@enduml
