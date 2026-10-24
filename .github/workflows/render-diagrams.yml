@@ -1,0 +1,53 @@
+name: Export architecture diagrams to PNG
+
+on:
+  push:
+    paths-ignore:
+      - 'diagrams/*.png'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  export-png:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install SVG renderer
+        run: pip install cairosvg
+      - name: Export SVG diagrams as PNG
+        run: |
+          python - <<'PY'
+          import cairosvg
+          from pathlib import Path
+
+          diagrams = {
+              "saga-architecture-overview.svg": "saga-architecture-overview.png",
+              "sequence-success-flow.svg": "sequence-success-flow.png",
+              "sequence-compensation-flow.svg": "sequence-compensation-flow.png",
+          }
+          folder = Path("diagrams")
+          for source, target in diagrams.items():
+              src = folder / source
+              if not src.exists():
+                  raise SystemExit(f"Missing source diagram: {src}")
+              cairosvg.svg2png(url=str(src), write_to=str(folder / target), scale=1.5)
+              print(f"Exported {src} -> {folder / target}")
+          PY
+      - name: Commit PNG exports
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add diagrams/*.png
+          if git diff --cached --quiet; then
+            echo "No PNG changes to commit."
+            exit 0
+          fi
+          git commit -m "Add PNG exports of architecture diagrams"
+          git push
