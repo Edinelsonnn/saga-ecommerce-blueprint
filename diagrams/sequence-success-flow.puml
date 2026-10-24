@@ -1,0 +1,37 @@
+@startuml sequence-success-flow
+title Fluxo de sucesso — Saga orquestrada
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+autonumber
+actor Cliente
+participant "Order Service" as ORD
+queue "Message Broker" as MB
+participant "Saga Orchestrator" as ORC
+participant "Inventory Service" as INV
+participant "Payment Service" as PAY
+participant "Gateway externo" as EXT
+Cliente -> ORD : POST /orders (Idempotency-Key)
+ORD -> ORD : TX local: Order=PENDING + outbox
+ORD --> Cliente : 202 Accepted (orderId)
+ORD -> MB : OrderCreated
+MB -> ORC : OrderCreated
+ORC -> ORC : cria saga_state (STARTED)
+ORC -> MB : ReserveStock
+MB -> INV : ReserveStock
+INV -> INV : deduplicar + reservar estoque
+INV -> MB : StockReserved
+MB -> ORC : StockReserved
+ORC -> MB : ProcessPayment
+MB -> PAY : ProcessPayment
+PAY -> EXT : authorize(amount, paymentId)
+EXT --> PAY : aprovado
+PAY -> MB : PaymentApproved
+MB -> ORC : PaymentApproved
+ORC -> MB : ApproveOrder
+MB -> ORD : ApproveOrder
+ORD -> ORD : Order=APPROVED
+ORD -> MB : OrderApproved
+MB -> ORC : OrderApproved
+ORC -> ORC : status=COMPLETED
+ORD ->> Cliente : notificação: pedido aprovado
+@enduml
