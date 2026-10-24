@@ -1,0 +1,16 @@
+@startuml saga-state-machine
+title Máquina de estados da Saga
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+[*] --> STARTED : OrderCreated
+STARTED --> STOCK_RESERVED : StockReserved
+STARTED --> COMPENSATING : StockRejected / timeout
+STOCK_RESERVED --> PAYMENT_APPROVED : PaymentApproved
+STOCK_RESERVED --> COMPENSATING : PaymentRejected / timeout
+PAYMENT_APPROVED --> COMPLETED : OrderApproved
+COMPENSATING --> COMPENSATED : StockReleased + OrderCancelled
+COMPENSATING --> COMPENSATION_FAILED : retries esgotados / DLQ
+COMPLETED --> [*]
+COMPENSATED --> [*]
+COMPENSATION_FAILED --> [*] : intervenção manual
+@enduml
