@@ -1,0 +1,29 @@
+@startuml saga-architecture-overview
+title Visão geral — Saga orquestrada no e-commerce
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam componentStyle rectangle
+actor Cliente as C
+component "API Gateway" as GW
+component "Order Service\nOrder API + Outbox" as ORD
+database "orders_db" as ODB
+component "Saga Orchestrator" as ORC
+database "saga_db\nsaga_state + saga_log" as SDB
+component "Inventory Service" as INV
+database "inventory_db" as IDB
+component "Payment Service" as PAY
+database "payment_db" as PDB
+queue "Message Broker\ncommands / replies / DLQ" as MB
+cloud "Gateway financeiro" as EXT
+C --> GW : POST /orders
+GW --> ORD : HTTP síncrono
+ORD --> ODB
+ORC --> SDB
+INV --> IDB
+PAY --> PDB
+ORD <--> MB : eventos / comandos
+ORC <--> MB : comandos / respostas
+INV <--> MB : comandos / respostas
+PAY <--> MB : comandos / respostas
+PAY --> EXT : HTTPS + retry + circuit breaker
+@enduml
